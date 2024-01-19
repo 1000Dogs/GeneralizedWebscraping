@@ -4,4 +4,5 @@
 /torus.html
 /very_small_test_log.csv
 /__pycache__
-!spec/*.ipynb
+/Search_analysis_testing.ipynb
+/Search_testing.ipynb

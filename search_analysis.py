@@ -1,9 +1,7 @@
 import networkx as nx
-import sqlite3 as sql
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import matplotlib.patches as ptch
 import math
 
 from Search import Search
@@ -14,49 +12,27 @@ from pyvis.network import Network
 
 
 class search_analysis:
-    seeds = {'google.com',
-             'cisa.gov',
-             'bleepingcomputer.com',
-             'kaspersky.com',
-             'krebsonsecurity.com',
-             'reddit.com',
-             'zerodayinitiative.com',
-             'isc.sans.edu',  # SANS Internet Storm center, Newsletter
-             'msrc.microsoft.com',  # Microsoft
-             # '',  # Twitter
-             'infosec.exchange',  # infosec.exchange mastodon server
-             'dhs.gov',  # DHS
-             'cve.mitre.org',  # MITRE
-             'nvd.nist.gov',  # NVD
-             'owasp.org',  # OWASP
-             'enisa.europa.eu',  # ENISA
-             'askwoody.com',  # ask woody
-             'ncsc.gov.uk',  # NCSC
-             'thehackernews.com',  # The Hacker News
-             'otx.alienvault.com',  # AlienVault OTX
-             'darkreading.com',
-             'threatpost.com'}
+    
     
 
     #currently testing out saving things as catagories, that may break things so Im not going further with it till other stuff is done
 
-    #maybe add pure cve and pure url table for storing generated stats, lessen the number of queries
     def __init__(self, pickled_search:Search = None) -> None:
         
         # This is the edge list that stores all of the links in the graph generated from the linked_urls table.
         # It has the columns 'url' and 'link' which are derived directly from linked_urls.
         # And the columns 'domain_url' and 'domain_link' which are the domains paired with the urls.
         # We can grab this directly from pickled search in this case
-        # an edge here means that it their was a link to that page and it conained cves we cared about
+        # an edge here means that it their was a link to that page and it conained relevent term we cared about
         self.edge_list = pickled_search.get_edge_list(reduced=True)
         self.add_domain_names(self.edge_list,"url")
         self.add_domain_names(self.edge_list,"link")
         
-        #all the cves that were considered in this search
+        #all the terms that were considered in this search
         self.analyzed_term_set = pickled_search.relevent_terms
 
-        # This is the cve-url paired information. This table is primarily used to lookup which urls are related to which cves.
-        # It has the columns 'cve', 'url', and 'domain_url' in case you want to do operations by domain.
+        # This is the term-url paired information. This table is primarily used to lookup which urls are related to which terms.
+        # It has the columns 'term', 'url', and 'domain_url' in case you want to do operations by domain.
         self.term_url = pickled_search.get_term_url_pairs_pairs()
         self.add_domain_names(self.term_url, "url")
 
@@ -88,13 +64,13 @@ class search_analysis:
         self.term_anal_df = pd.read_pickle(folder_location + '/term_anal_df.pickle')
         self.url_anal_df = pd.read_pickle(folder_location + '/url_anal_df.pickle')
         self.domain_anal_df = pd.read_pickle(folder_location + '/domain_anal_df.pickle')
-        self.analyzed_cve_set = pd.read_pickle(folder_location + '/analyzed_cve_set.pickle')
+        self.analyzed_term_set = pd.read_pickle(folder_location + '/analyzed_term_set.pickle')
 
     
 
     def outgoing_ratio_per_domain(self, domain:str):
         '''
-        Returns the number of outgoing links at a given cve divded by the total number of pages at that domain
+        Returns the number of outgoing links at a given term divded by the total number of pages at that domain
         '''
         outgoing_links = self.edge_list[(self.edge_list["domain_url"] == domain) & (self.edge_list["domain_link"] != domain)]
         resources_at_domain = self.get_url_by_domain(domain, return_list=False)
@@ -103,19 +79,19 @@ class search_analysis:
     # probably done need to test
     def get_term_per_domain(self, unique=True) -> pd.DataFrame:
         '''
-        Returns the  cve's that are present for each domain in the edge list. Either the list of them or just the number.
-        Uses the cves_mentioned cve-url table.
+        Returns the  terms's that are present for each domain in the edge list. Either the list of them or just the number.
+        Uses the terms_mentioned term-url table.
             Parameters:
-                unique (bool): By default True. Modifies what is returned. If true, counts the number of unique CVE's within each domain.
-                    If false, counts the number of CVE mentions, even if a CVE is mentioned multiple times.
+                unique (bool): By default True. Modifies what is returned. If true, counts the number of unique terms within each domain.
+                    If false, counts the number of terms mentions, even if a term is mentioned multiple times.
             Returns:
-                cves by domain (pd.DataFrame): Data frame of the results based. Columns are "cve" containg the count
+                terms by domain (pd.DataFrame): Data frame of the results based. Columns are "terms" containg the count
                     and "domain_url".
         '''
-        #any domain name that had a cve related to it, not all seeds possibly
-        #unique specifies whether or not we are counting number of unique cve's per page or number of cve's mentioned
+        #any domain name that had a term related to it, not all seeds possibly
+        #unique specifies whether or not we are counting number of unique term's per page or number of term's mentioned
         
-        # Grabbing the table of cves and domains, their will be many repeats since each domain may have many pages that each mention cves
+        # Grabbing the table of terms and domains, their will be many repeats since each domain may have many pages that each mention terms
         table = self.term_url[["term","domain_url"]]
         # Group by the url, and count the number of unique items in each sub tables 
         grouped_table = table.groupby(by="domain_url")
@@ -124,18 +100,18 @@ class search_analysis:
 
     def get_term_per_url(self, unique=True) -> pd.DataFrame:
         '''
-        Returns the  cve's that are present for each url in the edge list. Either the list of them or just the number.
+        Returns the terms that are present for each url in the edge list. Either the list of them or just the number.
             Parameters:
-                unique (bool): By default True. Modifies what is returned. If true, counts the number of unique CVE's within each domain.
-                    If false, counts the number of CVE mentions, even if a CVE is mentioned multiple times.
+                unique (bool): By default True. Modifies what is returned. If true, counts the number of unique terms within each domain.
+                    If false, counts the number of terms mentions, even if a term is mentioned multiple times.
             Returns:
-                cves by domain (pd.DataFrame): Data frame of the results based. Columns are "cve" containg the count
+                terms by domain (pd.DataFrame): Data frame of the results based. Columns are "term" containg the count
                     and "domain_url".
         '''
-        #any domain name that had a cve related to it, not all seeds
-        #unique specifies whether or not we are counting number of unique cve's per page or number of cve's mentioned
+        #any domain name that had a term related to it, not all seeds
+        #unique specifies whether or not we are counting number of unique terms per page or number of term's mentioned
         
-        # Grabbing the table of cves and domains, their will be many repeats since each domain may have many pages that each mention cves
+        # Grabbing the table of terms and domains, their will be many repeats since each domain may have many pages that each mention terms
         table = self.term_url[["term","url"]]
         # Group by the url, and count the number of unique items in each sub tables 
         grouped_table = table.groupby(by="url")
@@ -144,15 +120,15 @@ class search_analysis:
 
     def resource_per_term(self, term:str, return_list:bool = False, unique_domain:bool = False, restrict_to_found_in:bool = False) -> int | pd.Series:
         '''
-        Returns the number of resources at a given cve in a data frame.
+        Returns the number of resources at a given term in a data frame.
 
             Parameters:
-                cve (str): A string representing the CVE desired.
-                return_list (bool): Controls whether a list of the CVEs or the number is returned.
+                term (str): A string representing the term desired.
+                return_list (bool): Controls whether a list of the terms or the number is returned.
                 unique_domain (bool): Controls whether the found resources are determined by domain or by url.
             
             Returns:
-                either an int or a datadrame with the columns "cve", and either "domain" or "url" depending on if unique_domain is True.
+                either an int or a datadrame with the columns "term", and either "domain" or "url" depending on if unique_domain is True.
 
 
         '''
@@ -164,10 +140,10 @@ class search_analysis:
     
     def num_connected_components_by_term(self, term:str, by_domain:bool=False) -> int:
         '''
-        Returns the number of connected components at a given cve.
+        Returns the number of connected components at a given term.
 
             Parameters:
-                cve (str): A string representing the CVE desired.
+                term (str): A string representing the term desired.
                 by_domain (bool): Controls whether the found connected components are determined by domain or by url graphs.
             
             Returns:
@@ -180,14 +156,14 @@ class search_analysis:
 
     def get_reciprocity(self, term:str=None, by_domain:bool=False) -> float:
         '''
-        Generates the reciprocity of the graph of a given CVE. Returns NaN if invalid graph passed
+        Generates the reciprocity of the graph of a given term. Returns NaN if invalid graph passed
 
             Parameters:
-                cve (str): A string representing the CVE desired.
+                term (str): A string representing the term desired.
                 by_domain (bool): Controls whether the Graph is determined by domain or by url.
             
             Returns:
-                The reciprocity of a given CVE graph as a float.
+                The reciprocity of a given term graph as a float.
         '''
         s = "domain_url" if by_domain else "url"
         t = "domain_link" if by_domain else "link"
@@ -209,7 +185,7 @@ class search_analysis:
         Generates the correlation matrix of the domain graph
             
             Returns:
-                An adjacency matrix where an edge between the ith and jth nodes has a weight equal to the number of times that edge occures over all cve graphs.
+                An adjacency matrix where an edge between the ith and jth nodes has a weight equal to the number of times that edge occures over all term graphs.
         '''
         domain_edge_list = self.edge_list[["domain_url","domain_link"]].drop_duplicates()
         domain_edge_list["counts"] = np.zeros(shape=(domain_edge_list.shape[0]))
@@ -254,7 +230,7 @@ class search_analysis:
             unique_term_per_domain = self.get_term_per_domain(unique=True)
             term_per_domain = self.get_term_per_domain(unique=False)
 
-            sum = unique_term_per_domain["cve"] + term_per_domain["cve"]
+            sum = unique_term_per_domain["term"] + term_per_domain["term"]
             sorted_index = sum.argsort()
 
             unique_term_per_domain = unique_term_per_domain.iloc[sorted_index, :]
@@ -291,7 +267,7 @@ class search_analysis:
         ax.hist(self.term_anal_df["reciprocity"])
         ax.set_ylabel("# Termss")
         ax.set_xlabel("Reciprocity")
-        ax.set_title("Reciprocity By Domain per CVE")
+        ax.set_title("Reciprocity By Domain per Term")
         return (fig, ax)
     
     def gen_outgoing_hist(self):
@@ -315,15 +291,15 @@ class search_analysis:
         ax.scatter(y = data[y], x = data[x])
         return (fig, ax)
 
-    def get_terms_at_url(self, term:str | list[str], return_list:bool = True, restrict_to_found_in:bool = False) -> np.ndarray | int:
+    def get_terms_at_url(self, term:str | list[str], return_list:bool = True) -> np.ndarray | int:
         """
         url : can be a string that represents a url in linked_urls or a list[str] of urls
-        restrict to found in : a bool that determines wherther we are talking about what cves are mentioned at the page 
-        versus, what search this cve was found in
+        restrict to found in : a bool that determines wherther we are talking about what terms are mentioned at the page 
+        versus, what search this terms was found in
 
-        returns all the cves that this url talks about uniquely
+        returns all the terms that this url talks about uniquely
         """
-        dataframe_used = self.cve_url if not restrict_to_found_in else self.url_found_in_search_set
+        dataframe_used = self.term_url
 
         if type(term) != str:
             values = pd.unique(dataframe_used.loc[dataframe_used["url"].isin(term), "term"])
@@ -347,7 +323,7 @@ class search_analysis:
         """
         domain : a string that represents a domain
 
-        returns all the cves that this domain talks about uniquely
+        returns all the terms that this domain talks about uniquely
         """
         terms = pd.unique(self.term_url.loc[self.term_url["domain_url"] == domain, "term"])
         return terms if return_list else len(terms)
@@ -364,7 +340,7 @@ class search_analysis:
 
     def append_num_connected_components(self, reappend:bool=False, by_domain:bool=False):
         if reappend or not "num_connected_components" in self.term_anal_df.columns:
-            self.term_anal_df["num_connected_components"] = self.term_anal_df["cve"].map(lambda term: self.num_connected_components_by_term(term, by_domain=by_domain))
+            self.term_anal_df["num_connected_components"] = self.term_anal_df["term"].map(lambda term: self.num_connected_components_by_term(term, by_domain=by_domain))
 
     def append_outgoing_ratio(self, reappend:bool=False):
         if reappend or not "outgoing_ratio" in self.url_anal_df.columns:
@@ -372,7 +348,7 @@ class search_analysis:
 
     def append_reciprocity(self, reappend:bool=False, by_domain:bool=False):
         if reappend or not "reciprocity" in self.term_anal_df.columns:
-            self.term_anal_df["reciprocity"] = self.term_anal_df["cve"].map(lambda x : self.get_reciprocity(x, by_domain))
+            self.term_anal_df["reciprocity"] = self.term_anal_df["term"].map(lambda x : self.get_reciprocity(x, by_domain))
 
 
     @staticmethod
@@ -387,8 +363,8 @@ class search_analysis:
     #probably done, need to manually verify somehow
     def get_term_graph(self) -> nx.DiGraph:
         '''
-        attempts to build a networkx digraph of the cves. Does this by taking each source url in the edge list,
-        grabbing all of its cve refs, and then doing the same for its neighbors, building a graph along the way.
+        attempts to build a networkx digraph of the terms. Does this by taking each source url in the edge list,
+        grabbing all of its term refs, and then doing the same for its neighbors, building a graph along the way.
         '''
         g = nx.DiGraph()
 
@@ -404,7 +380,7 @@ class search_analysis:
 
     def get_term_set(self) -> np.ndarray:
         '''
-        simply returns the unique set of cves in cve_url
+        simply returns the unique set of terms in term_url
         '''
         return self.analyzed_term_set
 
@@ -442,8 +418,8 @@ class search_analysis:
 
     def get_adjacent_term_set(self, url:str, edge_list_used=None) -> np.ndarray:
         """
-        Returns all cves of all links "adjacent" to this one,
-        in the sense that a page that contains this cve, links to a page containing the other
+        Returns all terms of all links "adjacent" to this one,
+        in the sense that a page that contains this term, links to a page containing the other
         """
         if edge_list_used is None:
             edge_list_used = self.edge_list
@@ -452,7 +428,7 @@ class search_analysis:
     
     def add_domain_names(self, df:pd.DataFrame, dom_col:str):
         """
-        adds domain names to edge_list and cve table
+        adds domain names to edge_list and term table
         """
         df["domain_" + dom_col] = df[dom_col]
         df["domain_" + dom_col] = df[dom_col].map(search_analysis.domain_scraper, na_action="ignore")

@@ -210,7 +210,7 @@ class Search:
                 scrape_sucess = True
 
                 
-                # reject any links with 0 cves, just continue if has cves but 0 relevent because we may want to search it later
+                # reject any links with 0 relevent terms, just continue if has relevent terms but 0 relevent because we may want to search it later
                 if len(terms_found) == 0:
                     self.rejected.add(url)
                     r.close()
@@ -316,14 +316,14 @@ class Search:
         
 
 
-        # soup and scrape all relevent information, only keeping stuff with cves
+        # soup and scrape all relevent information, only keeping stuff with relevent information
         start = time.time()
         stock_pot = self.soupnscrape(request_list=succesful_responces, custom_soupers=custom_soupers)
         soupnscrape_time =  time.time() - start
 
         # go through each result in the stock pot, and add its relevent information to the differnt sets
         start = time.time()
-        for result in stock_pot: # already rejected where cves mentioned == 0 in soup n scrape
+        for result in stock_pot: # already rejected where relvent terms mentioned == 0 in soup n scrape
             url, soup, terms_found = result
 
             self.term_url_pairs[url] = terms_found
@@ -381,40 +381,30 @@ class Search:
         while len(self.to_search) != 0 and self.iteration < num_its:
             self.iterate_search(max_deque_limit, max_timeout, max_accepted_links, custom_soupers=custom_soupers, filter_function=filter_function)
     
-    #silly commit
 def main() -> int:
-    monkey.patch_all()
-    print("Collecting")
 
     a = ["https://en.wikipedia.org/wiki/Metric_space"]
     
+
+    # a custom soup strainer is given for the wikipedia domain so that searching does not get stuck in search bars
     custom_soupers = {"en.wikipedia.org":SoupStrainer(attrs={"class":"vector-body"}, multi_valued_attributes=None)}
     blocked_urls = ["https://en.wikipedia.org/w/index.php?"]
     filter_function = lambda url: not (any(str.__contains__(url, blocked) for blocked in blocked_urls))
     
     # search_obj : Search = pd.read_pickle("very_small_test.pickle")
-    search_obj : Search = Search(search_name="very_small_test", to_search=a, relevent_terms={'metric space'}, term_identifiers=[r"metric space"], restricted_domain=["en.wikipedia.org"])
+    search_obj : Search = Search(
+        search_name="very_small_test", 
+        to_search=a, 
+        relevent_terms={'metric space'}, 
+        term_identifiers=[r"metric space"], #can be any regex statement, currently the same as relevent terms field to simplify the example
+        restricted_domain=["en.wikipedia.org"])
 
+    
     search_obj.build_links(custom_soupers=custom_soupers, filter_function=filter_function)
+    #after each iteration the search is saved, so if their is some crash due to internet errors, the search can be restarted by unpickling the object and calling build links again
     return 1
 
 if __name__ == '__main__':
     main()
     sys.exit()
 
-
-
-
-
-
-#tqdm
-
-# search_set = a.loc[a['cve'].isin(toy_set.analyzed_cve_set), 'url'].drop_duplicates().to_list()
-
-
-
-
-
-# TODO
-# 1. maybe 750 link threshold
-# 5. implement carson's link reduction algorithms(site specifc)

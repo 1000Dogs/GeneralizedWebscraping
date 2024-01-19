@@ -381,7 +381,7 @@ class Search:
         while len(self.to_search) != 0 and self.iteration < num_its:
             self.iterate_search(max_deque_limit, max_timeout, max_accepted_links, custom_soupers=custom_soupers, filter_function=filter_function)
     
-    
+    #silly commit
 def main() -> int:
     monkey.patch_all()
     print("Collecting")

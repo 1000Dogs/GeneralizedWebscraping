@@ -23,7 +23,7 @@ class search_analysis:
         # And the columns 'domain_url' and 'domain_link' which are the domains paired with the urls.
         # We can grab this directly from pickled search in this case
         # an edge here means that it their was a link to that page and it conained relevent term we cared about
-        self.edge_list = pickled_search.get_edge_list(reduced=True)
+        self.edge_list = pickled_search.get_edge_list()
         self.add_domain_names(self.edge_list,"url")
         self.add_domain_names(self.edge_list,"link")
         

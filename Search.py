@@ -272,10 +272,13 @@ class Search:
         pd.to_pickle(self.searches_with_error, log_name + "_searches_with_error.pickle")
         pd.to_pickle(self.relevent_terms, log_name + "relevent_terms.pickle")
 
-    def get_edge_list(self, reduced = False) -> pd.DataFrame:
+    def get_edge_list(self) -> pd.DataFrame:
+        for head in self.edge_list: # techinchally these lines are unnessicary but good for ensureing safety
+            bad_boys = set.intersection(self.edge_list[head], self.rejected)
+            self.edge_list[head].difference_update(bad_boys)
         edges = pd.Series(self.edge_list).explode().reset_index()
         edges.rename(columns={"index" : "url", 0 : "link"}, inplace=True)
-        return edges if not reduced else edges[edges["link"].isin(edges["url"])].reset_index(drop=True)
+        return edges
     
     def get_term_url_pairs_pairs(self) -> pd.DataFrame:
         term_url = pd.Series(self.term_url_pairs).explode().reset_index()
@@ -347,9 +350,13 @@ class Search:
                     num_rejected += 1
                     continue
                 self.to_search.appendleft(new_url)
-                
+        
         search_time = time.time() - start
 
+        
+        for head in self.edge_list:
+            bad_boys = set.intersection(self.edge_list[head], self.rejected)
+            self.edge_list[head].difference_update(bad_boys)
         
         end = time.time()
         timer = end - total_timer
